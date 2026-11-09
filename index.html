@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123b5d">
+  <meta name="description" content="Simple offline-friendly trip billing app for drivers.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <title>TripBill – Driver Billing</title>
+  <style>
+    :root{--navy:#123b5d;--blue:#176b9b;--bg:#f3f6f9;--ink:#18212b;--muted:#647282;--line:#dce4eb;--white:#fff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    header{background:var(--navy);color:#fff;padding:20px 16px 18px} header h1{font-size:22px;margin:0 0 4px} header p{margin:0;color:#d5e4ef;font-size:13px}
+    main{max-width:720px;margin:auto;padding:16px 14px 40px}.tabs{display:flex;gap:8px;margin:0 0 14px}
+    .tab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;font-weight:650;color:var(--navy)}
+    .tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+    .panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px #17334a0a}
+    h2{font-size:17px;margin:0 0 14px;color:var(--navy)} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{display:block;font-size:12px;font-weight:700;color:#526171;margin-bottom:5px}
+    input{width:100%;border:1px solid #cbd6df;border-radius:10px;padding:12px;font:inherit;background:#fff;color:var(--ink);min-width:0}
+    input:focus{outline:2px solid #8cc8e8;border-color:var(--blue)}
+    .field{margin-bottom:12px}.full{grid-column:1/-1}
+    .amount{background:#edf5fa;border:1px solid #d1e5f1;border-radius:13px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin:8px 0 14px}
+    .amount strong{font-size:24px;color:var(--navy)} .muted{color:var(--muted);font-size:12px}
+    button{border:0;border-radius:11px;padding:13px 15px;font:700 14px system-ui;cursor:pointer}
+    .primary{background:var(--navy);color:#fff;width:100%}.secondary{background:#e8f0f5;color:var(--navy);width:100%}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+    .history-item{border-top:1px solid var(--line);padding:12px 0;display:flex;justify-content:space-between;gap:12px;align-items:center}
+    .history-item:first-child{border-top:0}.history-item strong{display:block}.history-item small{color:var(--muted)}
+    .danger{background:#fff0f0;color:#a22}.logo-preview{width:58px;height:58px;object-fit:contain;border:1px dashed var(--line);border-radius:10px;padding:4px;background:#fff}
+    .hidden{display:none!important}
+    @media(max-width:480px){.grid{grid-template-columns:1fr 1fr}.panel{padding:14px}.actions{grid-template-columns:1fr}}
+    @media print{body{background:#fff}.no-print,header,main>.tabs{display:none!important}#invoicePrint{display:block!important;border:0;box-shadow:none;margin:0;padding:0}main{padding:0;max-width:none}}
+  </style>
+</head>
+<body>
+<header class="no-print">
+  <h1>TripBill</h1><p>Simple trip billing for Tours & Travels drivers</p>
+</header>
+<main>
+  <div class="tabs no-print">
+    <button class="tab active" id="newTab" type="button">New bill</button>
+    <button class="tab" id="historyTab" type="button">Bill history</button>
+    <button class="tab" id="settingsTab" type="button">Company setup</button>
+  </div>
+
+  <section id="newPanel" class="no-print">
+    <div class="panel">
+      <h2>Ride details</h2>
+      <div class="grid">
+        <div class="field"><label for="billDate">Trip date</label><input id="billDate" type="date"></div>
+        <div class="field"><label for="billNo">Bill number</label><input id="billNo" readonly></div>
+        <div class="field full"><label for="customer">Customer name</label><input id="customer" placeholder="Customer name"></div>
+        <div class="field"><label for="driver">Driver name</label><input id="driver" placeholder="Driver name"></div>
+        <div class="field"><label for="vehicle">Vehicle number</label><input id="vehicle" placeholder="e.g. MH 12 AB 1234"></div>
+        <div class="field"><label for="startKm">Starting KM</label><input id="startKm" type="number" min="0" step="0.1" placeholder="0"></div>
+        <div class="field"><label for="endKm">Ending KM</label><input id="endKm" type="number" min="0" step="0.1" placeholder="0"></div>
+        <div class="field"><label for="rate">Price per KM (₹)</label><input id="rate" type="number" min="0" step="0.01" placeholder="e.g. 15"></div>
+        <div class="field"><label for="extra">Extra charges (₹)</label><input id="extra" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field full"><label for="notes">Notes (optional)</label><input id="notes" placeholder="Toll, parking, route details, etc."></div>
+      </div>
+      <div class="amount"><div><div class="muted">Distance travelled</div><strong id="totalKm">0 KM</strong></div><div style="text-align:right"><div class="muted">Total amount</div><strong id="totalAmount">₹0.00</strong></div></div>
+      <button class="primary" id="generateBtn" type="button">Generate & save bill</button>
+      <p class="muted">Calculation: (Ending KM − Starting KM) × Rate + Extra charges</p>
+    </div>
+  </section>
+
+  <section id="historyPanel" class="panel hidden no-print">
+    <h2>Saved bills on this phone</h2><div id="historyList" class="muted">No bills saved yet.</div>
+  </section>
+
+  <section id="settingsPanel" class="panel hidden no-print">
+    <h2>Company setup</h2>
+    <div class="field"><label for="companyName">Company name</label><input id="companyName" placeholder="Your Tours & Travels"></div>
+    <div class="grid">
+      <div class="field"><label for="companyPhone">Phone number</label><input id="companyPhone" placeholder="+91..."></div>
+      <div class="field"><label for="companyAddress">Address</label><input id="companyAddress" placeholder="City, State"></div>
+      <div class="field full"><label for="companyLogo">Company logo</label><input id="companyLogo" type="file" accept="image/*"></div>
+      <div class="field full"><img id="logoPreview" class="logo-preview hidden" alt="Logo preview"></div>
+    </div>
+    <button class="primary" id="saveSettings" type="button">Save company details</button>
+    <p class="muted">These details are saved only on this phone. Each driver should set them up once.</p>
+  </section>
+
+  <section id="invoicePrint" class="panel hidden">
+    <div id="invoiceContent"></div>
+    <div class="actions no-print">
+      <button class="primary" id="downloadPdf" type="button">Download PDF</button>
+      <button class="secondary" id="sharePdf" type="button">Share PDF</button>
+      <button class="secondary" id="backToForm" type="button">Back to app</button>
+    </div>
+    <p class="muted no-print">If PDF download is unavailable, use your browser's Print option and choose “Save as PDF”.</p>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const KEY='tripbill_settings_v1', BILLS='tripbill_bills_v1';
+let settings=JSON.parse(localStorage.getItem(KEY)||'{}'), bills=JSON.parse(localStorage.getItem(BILLS)||'[]'), currentBill=null, logoData=settings.logo||'';
+const today=new Date().toISOString().slice(0,10);
+$('billDate').value=today;
+function money(n){return '₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function km(){return Math.max(0,(Number($('endKm').value)||0)-(Number($('startKm').value)||0))}
+function calc(){const d=km(), t=d*(Number($('rate').value)||0)+(Number($('extra').value)||0);$('totalKm').textContent=d.toLocaleString('en-IN')+' KM';$('totalAmount').textContent=money(t);return {distance:d,total:t}}
+['startKm','endKm','rate','extra'].forEach(id=>$(id).addEventListener('input',calc));
+function nextBillNo(){return 'TB-'+new Date().toISOString().slice(2,10).replaceAll('-','')+'-'+String(bills.length+1).padStart(3,'0')}
+$('billNo').value=nextBillNo();
+function showTab(name){['new','history','settings'].forEach(x=>{$(x+'Panel').classList.toggle('hidden',x!==name);$(x+'Tab').classList.toggle('active',x===name)});$('invoicePrint').classList.add('hidden');if(name==='history')renderHistory()}
+$('newTab').onclick=()=>showTab('new');$('historyTab').onclick=()=>showTab('history');$('settingsTab').onclick=()=>showTab('settings');
+function loadSettings(){ $('companyName').value=settings.name||'';$('companyPhone').value=settings.phone||'';$('companyAddress').value=settings.address||'';if(logoData){$('logoPreview').src=logoData;$('logoPreview').classList.remove('hidden')} }
+loadSettings();
+$('companyLogo').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{logoData=r.result;$('logoPreview').src=logoData;$('logoPreview').classList.remove('hidden')};r.readAsDataURL(f)};
+$('saveSettings').onclick=()=>{settings={name:$('companyName').value.trim(),phone:$('companyPhone').value.trim(),address:$('companyAddress').value.trim(),logo:logoData};localStorage.setItem(KEY,JSON.stringify(settings));alert('Company details saved on this phone.')};
+$('generateBtn').onclick=()=>{
+ const c=calc(); if(!$('customer').value.trim()||!$('driver').value.trim()||!$('rate').value||Number($('endKm').value)<=Number($('startKm').value)){alert('Please enter customer name, driver name, valid KM readings and price per KM.');return}
+ currentBill={id:$('billNo').value,date:$('billDate').value,customer:$('customer').value.trim(),driver:$('driver').value.trim(),vehicle:$('vehicle').value.trim(),start:Number($('startKm').value),end:Number($('endKm').value),distance:c.distance,rate:Number($('rate').value),extra:Number($('extra').value)||0,total:c.total,notes:$('notes').value.trim(),company:{...settings}};
+ bills.unshift(currentBill);localStorage.setItem(BILLS,JSON.stringify(bills));renderInvoice(currentBill);
+};
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderInvoice(b){$('invoicePrint').classList.remove('hidden');$('newPanel').classList.add('hidden');$('historyPanel').classList.add('hidden');$('settingsPanel').classList.add('hidden');document.querySelector('.tabs').classList.add('hidden');
+ const co=b.company||{};$('invoiceContent').innerHTML=`
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:2px solid #123b5d;padding-bottom:14px">
+ <div>${co.logo?`<img src="${co.logo}" style="max-width:82px;max-height:70px;object-fit:contain">`:''}</div>
+ <div style="text-align:right"><h1 style="margin:0;color:#123b5d;font-size:24px">${esc(co.name||'Tours & Travels')}</h1><div>${esc(co.phone||'')}</div><div>${esc(co.address||'')}</div></div></div>
+ <h2 style="text-align:center;margin:22px 0 14px">TRIP BILL</h2>
+ <div style="display:flex;justify-content:space-between;gap:10px"><span><b>Bill No:</b> ${esc(b.id)}</span><span><b>Date:</b> ${esc(b.date)}</span></div>
+ <hr style="border:0;border-top:1px solid #ddd;margin:14px 0">
+ <p><b>Customer:</b> ${esc(b.customer)}</p><p><b>Driver:</b> ${esc(b.driver)}</p><p><b>Vehicle:</b> ${esc(b.vehicle||'—')}</p>
+ <table style="width:100%;border-collapse:collapse;margin-top:18px"><tr style="background:#edf5fa"><th style="text-align:left;padding:10px;border:1px solid #ddd">Description</th><th style="text-align:right;padding:10px;border:1px solid #ddd">Details</th></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Starting KM</td><td style="text-align:right;padding:10px;border:1px solid #ddd">${b.start}</td></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Ending KM</td><td style="text-align:right;padding:10px;border:1px solid #ddd">${b.end}</td></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Total distance</td><td style="text-align:right;padding:10px;border:1px solid #ddd"><b>${b.distance} KM</b></td></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Rate per KM</td><td style="text-align:right;padding:10px;border:1px solid #ddd">${money(b.rate)}</td></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Distance fare</td><td style="text-align:right;padding:10px;border:1px solid #ddd">${money(b.distance*b.rate)}</td></tr>
+ <tr><td style="padding:10px;border:1px solid #ddd">Extra charges</td><td style="text-align:right;padding:10px;border:1px solid #ddd">${money(b.extra)}</td></tr></table>
+ <h2 style="text-align:right;margin-top:18px">Total: ${money(b.total)}</h2>
+ ${b.notes?`<p><b>Notes:</b> ${esc(b.notes)}</p>`:''}
+ <p style="text-align:center;margin-top:42px;color:#526171">Thank you for travelling with us!</p>`;
+}
+function pdfBlob(b){if(!window.jspdf){return null}const {jsPDF}=window.jspdf;const doc=new jsPDF();const co=b.company||{};let y=20;
+ doc.setFontSize(19);doc.setTextColor(18,59,93);doc.text(co.name||'Tours & Travels',105,y,{align:'center'});y+=9;
+ doc.setFontSize(10);doc.setTextColor(70);if(co.phone){doc.text('Phone: '+co.phone,105,y,{align:'center'});y+=6}if(co.address){doc.text(co.address,105,y,{align:'center'});y+=6}
+ doc.setDrawColor(18,59,93);doc.line(15,y,195,y);y+=12;doc.setFontSize(16);doc.setTextColor(18,59,93);doc.text('TRIP BILL',105,y,{align:'center'});y+=13;
+ doc.setFontSize(11);doc.setTextColor(30);const rows=[['Bill number',b.id],['Trip date',b.date],['Customer',b.customer],['Driver',b.driver],['Vehicle',b.vehicle||'-'],['Starting KM',String(b.start)],['Ending KM',String(b.end)],['Total distance',b.distance+' KM'],['Rate per KM',money(b.rate)],['Distance fare',money(b.distance*b.rate)],['Extra charges',money(b.extra)]];
+ rows.forEach(([a,v])=>{doc.text(a,20,y);doc.text(v,190,y,{align:'right'});y+=9});doc.setDrawColor(190);doc.line(20,y,190,y);y+=12;doc.setFontSize(16);doc.setTextColor(18,59,93);doc.text('TOTAL: '+money(b.total),190,y,{align:'right'});y+=14;
+ if(b.notes){doc.setFontSize(10);doc.setTextColor(60);doc.text('Notes: '+b.notes,20,y,{maxWidth:170});y+=12}
+ doc.setFontSize(10);doc.text('Thank you for travelling with us!',105,Math.min(y+18,275),{align:'center'});
+ return doc.output('blob');
+}
+function filename(b){return (b.id||'trip-bill')+'.pdf'}
+$('downloadPdf').onclick=()=>{const blob=pdfBlob(currentBill);if(!blob){window.print();return}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename(currentBill);a.click();URL.revokeObjectURL(url)};
+$('sharePdf').onclick=async()=>{const blob=pdfBlob(currentBill);if(!blob){alert('PDF generator is not loaded. Connect to internet once, reload, then try again.');return}const file=new File([blob],filename(currentBill),{type:'application/pdf'});if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Trip bill '+currentBill.id,text:'Please find your trip bill attached.'})}catch(e){}}else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename(currentBill);a.click();URL.revokeObjectURL(url);alert('PDF downloaded. Attach it to WhatsApp from your Downloads folder.')}}
+$('backToForm').onclick=()=>{document.querySelector('.tabs').classList.remove('hidden');showTab('new');$('billNo').value=nextBillNo()};
+function renderHistory(){if(!bills.length){$('historyList').textContent='No bills saved yet.';return}$('historyList').innerHTML='';bills.forEach((b,i)=>{const el=document.createElement('div');el.className='history-item';el.innerHTML=`<div><strong>${esc(b.customer)} · ${money(b.total)}</strong><small>${esc(b.date)} · ${esc(b.id)} · ${b.distance} KM</small></div><button class="secondary" type="button">View</button>`;el.querySelector('button').onclick=()=>{currentBill=b;renderInvoice(b)};$('historyList').appendChild(el)})}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+</script>
+</body></html>
